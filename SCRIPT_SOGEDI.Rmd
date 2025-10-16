@@ -1,0 +1,147 @@
+---
+title: "Untitled"
+author: "rmoraga"
+date: "2025-10-16"
+output: html_document
+---
+
+
+#Librerías
+```{r}
+library(readxl)
+library(writexl)
+library(dplyr)
+library(psych)
+library(lavaan)
+```
+
+
+#---------------PREPARACIÓN DATOS SOGEDI---------------#
+
+#Bibliotecas SOGEDI
+```{r}
+if (! require("pacman")) install.packages("pacman")
+
+pacman::p_load(tidyverse,
+               sjmisc, 
+               here,
+               sjlabelled,
+               haven,
+               naniar,
+               car,
+               kableExtra)
+
+options(scipen=999)
+rm(list = ls())
+```
+
+#Carga de base de datos
+```{r}
+sogedi_db <- haven::read_sav(url("https://github.com/sogedi-project/sogedi-data/raw/refs/heads/main/input/data/original/SOGEDI_dataset_V1.sav"), user_na = T)
+
+glimpse(sogedi_db)
+```
+#Procesamiento
+```{r}
+#Seleccionar
+db_proc <- sogedi_db %>% 
+  dplyr::select(-c(matches("^(aten|time)"), 247:269, 283))
+
+#Filtro paises con poder estadístico (ARG, CHI, COL, Esp y MEX)
+frq(db_proc$natio_recoded)
+
+#Dejarsolo Chile
+db_chile <- db_proc %>% 
+  dplyr::filter(natio_recoded %in% c(3)) 
+
+```
+
+#Datos faltantes por variable
+```{r}
+db_proc %>% 
+  select(-c(ex_we_1, ex_we_2, in_we_1, in_we_2, 
+            ex_po_1, ex_po_2, in_po_1, in_po_2,
+            matches("^(greedy|punish|carin)"))) %>% 
+  miss_var_summary(.) %>% 
+  filter(pct_miss > 0) %>% 
+  kable(.,"markdown") 
+```
+
+
+#---------------MODELO SEM---------------#
+
+#1. Espcificación modelo población chilena
+```{r}
+modelo_latente_1 <- "
+# Medición
+ECO_IN =~ eco_in_1 + eco_in_2 + eco_in_3
+MOBI_UP =~ mobi_up_1 + mobi_up_2 + mobi_up_3
+MOBI_DOWN =~ mobi_down_1 + mobi_down_2 + mobi_down_3
+
+# Relaciones estructurales
+MOBI_UP ~ a1*ECO_IN
+MOBI_DOWN ~ d1*ECO_IN + a2*MOBI_UP
+jus_ine ~ b1*MOBI_UP + b2*MOBI_DOWN + c_pr*ECO_IN
+
+# Efectos indirectos
+ind1 := a1*b1
+ind2 := d1*b2
+ind3 := a1*a2*b2
+total_ind := ind1 + ind2 + ind3
+
+# Efecto total
+total := c_pr + total_ind
+
+# Proporción mediada
+prop_mediada := (total_ind / total) * 100
+"
+
+```
+
+#Ajuste del modelo población chilena
+```{r}
+ajuste_latente_1 <- sem(modelo_latente_1, 
+                        ordered = colnames(db_chile), 
+                        estimator="DWLS", 
+                        data = db_chile, 
+                        se = "bootstrap", 
+                        bootstrap = 5000)
+
+summary(ajuste_latente_1, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)
+
+```
+
+#Tabla resultados
+```{r}
+parameterEstimates(
+  ajuste_latente_1,
+  standardized = TRUE,
+  ci = TRUE,
+  boot.ci.type = "perc"
+) %>%
+  dplyr::filter(grepl("ind|total|prop", label))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
