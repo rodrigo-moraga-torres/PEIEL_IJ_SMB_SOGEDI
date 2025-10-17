@@ -220,10 +220,6 @@ tabla_sogedi <- parameterEstimates(
 
 #Exportar tablas a excel
 ```{r}
-# Crear carpeta si no existe
-dir.create("output", showWarnings = FALSE)
-
-# Exportar ambas tablas en un solo archivo Excel
 writexl::write_xlsx(
   list(
     "Resultados Chile" = tabla_chile,
@@ -237,27 +233,6 @@ writexl::write_xlsx(
 
 #--------------------VISUALIZACIONES---------------#
 
-
-#Visualización efectos indirectos estimados Chile
-```{r}
-# Extraer efectos definidos
-efectos <- parameterEstimates(ajuste_latente_chile) %>%
-  dplyr::filter(label %in% c("ind1", "ind2", "ind3", "total_ind", "total")) %>%
-  dplyr::mutate(label = factor(label, 
-                               levels = c("ind1","ind2","ind3","total_ind","total"),
-                               labels = c("Indirecto 1", "Indirecto 2", "Indirecto 3",
-                                          "Total Indirecto", "Total Efecto")))
-
-# Gráfico de barras
-ggplot(efectos, aes(x = label, y = est, fill = label)) +
-  geom_bar(stat = "identity") +
-  geom_errorbar(aes(ymin = ci.lower, ymax = ci.upper), width = 0.2) +
-  labs(x = "", y = "Efecto estandarizado", title = "Efectos de mediación - Modelo Chile") +
-  theme_minimal() +
-  theme(legend.position = "none")
-
-
-```
 
 #Gráfico de caminos con valores numéricos personalizados Chile
 ```{r}
