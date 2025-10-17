@@ -16,6 +16,7 @@ library(lavaan)
 ```
 
 
+
 #---------------PREPARACIÓN DATOS SOGEDI---------------#
 
 #Bibliotecas SOGEDI
@@ -41,6 +42,7 @@ sogedi_db <- haven::read_sav(url("https://github.com/sogedi-project/sogedi-data/
 
 glimpse(sogedi_db)
 ```
+
 #Procesamiento
 ```{r}
 #Seleccionar
@@ -50,29 +52,32 @@ db_proc <- sogedi_db %>%
 #Filtro paises con poder estadístico (ARG, CHI, COL, Esp y MEX)
 frq(db_proc$natio_recoded)
 
-#Dejarsolo Chile
+#Dejar solo Chile
 db_chile <- db_proc %>% 
   dplyr::filter(natio_recoded %in% c(3)) 
 
+#Solo ARG, CHI, COL, Esp y MEX
+db_proc <- db_proc %>% 
+  dplyr::filter(natio_recoded %in% c(1,3,4,9,13)) 
+
 ```
 
-#Datos faltantes por variable
+# Exportar base filtrada de Chile a Excel
 ```{r}
-db_proc %>% 
-  select(-c(ex_we_1, ex_we_2, in_we_1, in_we_2, 
-            ex_po_1, ex_po_2, in_po_1, in_po_2,
-            matches("^(greedy|punish|carin)"))) %>% 
-  miss_var_summary(.) %>% 
-  filter(pct_miss > 0) %>% 
-  kable(.,"markdown") 
+writexl::write_xlsx(
+  db_chile,
+  path = here::here("output", "db_chile.xlsx")
+)
+
 ```
 
 
-#---------------MODELO SEM---------------#
+
+#---------------MODELO SEM CHILE---------------#
 
 #1. Espcificación modelo población chilena
 ```{r}
-modelo_latente_1 <- "
+modelo_latente_chile <- "
 # Medición
 ECO_IN =~ eco_in_1 + eco_in_2 + eco_in_3
 MOBI_UP =~ mobi_up_1 + mobi_up_2 + mobi_up_3
@@ -100,21 +105,21 @@ prop_mediada := (total_ind / total) * 100
 
 #Ajuste del modelo población chilena
 ```{r}
-ajuste_latente_1 <- sem(modelo_latente_1, 
+ajuste_latente_chile <- sem(modelo_latente_chile, 
                         ordered = colnames(db_chile), 
                         estimator="DWLS", 
                         data = db_chile, 
                         se = "bootstrap", 
                         bootstrap = 5000)
 
-summary(ajuste_latente_1, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)
+summary(ajuste_latente_chile, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)
 
 ```
 
 #Tabla resultados
 ```{r}
 parameterEstimates(
-  ajuste_latente_1,
+  ajuste_latente_chile,
   standardized = TRUE,
   ci = TRUE,
   boot.ci.type = "perc"
@@ -124,6 +129,52 @@ parameterEstimates(
 ```
 
 
+
+
+
+
+#----------MODELO SEM SOGEDI ARG, CHI, COL, ESP y MEX-----------#
+
+```{r}
+modelo_latente_SOGEDI <- "
+# Medición
+ECO_IN =~ eco_in_1 + eco_in_2 + eco_in_3
+MOBI_UP =~ mobi_up_1 + mobi_up_2 + mobi_up_3
+MOBI_DOWN =~ mobi_down_1 + mobi_down_2 + mobi_down_3
+
+# Relaciones estructurales
+MOBI_UP ~ a1*ECO_IN
+MOBI_DOWN ~ d1*ECO_IN + a2*MOBI_UP
+jus_ine ~ b1*MOBI_UP + b2*MOBI_DOWN + c_pr*ECO_IN
+
+# Efectos indirectos
+ind1 := a1*b1
+ind2 := d1*b2
+ind3 := a1*a2*b2
+total_ind := ind1 + ind2 + ind3
+
+# Efecto total
+total := c_pr + total_ind
+
+# Proporción mediada
+prop_mediada := (total_ind / total) * 100
+"
+
+```
+
+
+#Ajuste del modelo SOGEDI
+```{r}
+ajuste_latente_SOGEDI <- sem(modelo_latente_SOGEDI, 
+                        ordered = colnames(db_proc), 
+                        estimator="DWLS", 
+                        data = db_proc, 
+                        se = "bootstrap", 
+                        bootstrap = 5000)
+
+summary(ajuste_latente_SOGEDI, fit.measures = TRUE, standardized = TRUE, rsquare = TRUE)
+
+```
 
 
 
