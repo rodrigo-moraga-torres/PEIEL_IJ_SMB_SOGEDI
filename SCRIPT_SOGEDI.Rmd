@@ -13,6 +13,13 @@ library(writexl)
 library(dplyr)
 library(psych)
 library(lavaan)
+library(semPlot)
+library(ggplot2)
+library(DiagrammeR)
+library(DiagrammeRsvg)
+library(rsvg)
+
+
 ```
 
 
@@ -116,7 +123,7 @@ summary(ajuste_latente_chile, fit.measures = TRUE, standardized = TRUE, rsquare 
 
 ```
 
-#Tabla resultados
+#Tabla resultados Chile
 ```{r}
 parameterEstimates(
   ajuste_latente_chile,
@@ -126,7 +133,18 @@ parameterEstimates(
 ) %>%
   dplyr::filter(grepl("ind|total|prop", label))
 
+
+# Exportar tabla resultados Chile
+tabla_chile <- parameterEstimates(
+  ajuste_latente_chile,
+  standardized = TRUE,
+  ci = TRUE,
+  boot.ci.type = "perc"
+) %>%
+  dplyr::filter(grepl("ind|total|prop", label))
+
 ```
+
 
 
 
@@ -176,16 +194,127 @@ summary(ajuste_latente_SOGEDI, fit.measures = TRUE, standardized = TRUE, rsquare
 
 ```
 
+#Tabla resultados SOGEDI
+```{r}
+parameterEstimates(
+  ajuste_latente_SOGEDI,
+  standardized = TRUE,
+  ci = TRUE,
+  boot.ci.type = "perc"
+) %>%
+  dplyr::filter(grepl("ind|total|prop", label))
+
+
+# Exportar Tabla resultados SOGEDI
+tabla_sogedi <- parameterEstimates(
+  ajuste_latente_SOGEDI,
+  standardized = TRUE,
+  ci = TRUE,
+  boot.ci.type = "perc"
+) %>%
+  dplyr::filter(grepl("ind|total|prop", label))
+
+
+```
+
+
+#Exportar tablas a excel
+```{r}
+# Crear carpeta si no existe
+dir.create("output", showWarnings = FALSE)
+
+# Exportar ambas tablas en un solo archivo Excel
+writexl::write_xlsx(
+  list(
+    "Resultados Chile" = tabla_chile,
+    "Resultados SOGEDI" = tabla_sogedi
+  ),
+  path = here::here("output", paste0("Resultados_SEM_", Sys.Date(), ".xlsx"))
+)
+
+```
+
+
+#--------------------VISUALIZACIONES---------------#
+
+
+#Visualización efectos indirectos estimados Chile
+```{r}
+# Extraer efectos definidos
+efectos <- parameterEstimates(ajuste_latente_chile) %>%
+  dplyr::filter(label %in% c("ind1", "ind2", "ind3", "total_ind", "total")) %>%
+  dplyr::mutate(label = factor(label, 
+                               levels = c("ind1","ind2","ind3","total_ind","total"),
+                               labels = c("Indirecto 1", "Indirecto 2", "Indirecto 3",
+                                          "Total Indirecto", "Total Efecto")))
+
+# Gráfico de barras
+ggplot(efectos, aes(x = label, y = est, fill = label)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = ci.lower, ymax = ci.upper), width = 0.2) +
+  labs(x = "", y = "Efecto estandarizado", title = "Efectos de mediación - Modelo Chile") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+
+```
+
+#Gráfico de caminos con valores numéricos personalizados Chile
+```{r}
+grafico_chile <- grViz("
+digraph sem {
+  graph [layout = dot, rankdir = LR]
+  node [shape = rectangle, style=filled, fillcolor='#C9E4F2', fontsize=12]
+
+  ECO_IN [label='Desigualdad Económica Percibida (ECO_IN)']
+  MOBI_UP [label='Movilidad Ascendente (MOBI_UP)']
+  MOBI_DOWN [label='Movilidad Descendente (MOBI_DOWN)']
+  jus_ine [label='Evaluación de Injusticia (jus_ine)']
+
+  ECO_IN -> MOBI_UP [label='a1 = 0.17***']
+  MOBI_UP -> jus_ine [label='b1 = 0.24***']
+  ECO_IN -> MOBI_DOWN [label='d1 = -0.02 ns']
+  MOBI_UP -> MOBI_DOWN [label='a2 = -0.30***']
+  MOBI_DOWN -> jus_ine [label='b2 = -0.00 ns']
+  ECO_IN -> jus_ine [label='c’ = -0.23***']
+}
+")
+
+# Exportar Chile
+svg_chile <- export_svg(grafico_chile)
+rsvg_png(charToRaw(svg_chile), file = "output/modelo_mediacion_Chile.png")
+
+
+```
 
 
 
+#Gráfico de caminos con valores numéricos personalizados SOGEDI
+```{r}
+grafico_sogedi <- grViz("
+digraph sem {
+  graph [layout = dot, rankdir = LR]
+  node [shape = rectangle, style=filled, fillcolor='#D9D9D9', fontsize=12]
 
+  ECO_IN [label='Desigualdad Económica Percibida (ECO_IN)']
+  MOBI_UP [label='Movilidad Ascendente (MOBI_UP)']
+  MOBI_DOWN [label='Movilidad Descendente (MOBI_DOWN)']
+  jus_ine [label='Evaluación de Injusticia (jus_ine)']
 
+  ECO_IN -> MOBI_UP [label='a1 = 0.16***']
+  MOBI_UP -> jus_ine [label='b1 = 0.14***']
+  ECO_IN -> MOBI_DOWN [label='d1 = 0.09***']
+  MOBI_UP -> MOBI_DOWN [label='a2 = -0.39***']
+  MOBI_DOWN -> jus_ine [label='b2 = 0.03 ns']
+  ECO_IN -> jus_ine [label='c’ = -0.14***']
+}
+")
 
+# Exportar SOGEDI
+svg_sogedi <- export_svg(grafico_sogedi)
+rsvg_png(charToRaw(svg_sogedi), file = "output/modelo_mediacion_SOGEDI.png")
 
-
-
-
+```
 
 
 
